@@ -1,14 +1,78 @@
-
+const dotenv = require('dotenv');
 const express = require('express');
+const { connectDB, disconnectDB } = require('./config/db');
+
 
 const app = express();
 const PORT = process.env.PORT || 5002;
 
-app.get('/', (req, res) => {
+// Middleware pour parser le JSON 
+app.use(express.json());
+
+dotenv.config();
+
+app.get('/', (req, res) => {  
   res.send('Hello World!');
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-}); 
+let server;
 
+const startServer = async () => {
+  try {
+    await connectDB();
+    server = app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Erreur lors du démarrage du serveur:", error);
+    process.exit(1);
+  }
+};
+startServer();
+
+// Gestion centralisée du shutdown
+const gracefulShutdown = async (signal) => {
+  console.log(`Reçu ${signal}. Fermeture en cours...`);
+  if (server) {
+    server.close(async () => {
+      await disconnectDB();
+      console.log("Serveur et Database fermés.");
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
+};
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+
+
+// Gestion des erreurs non capturées
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled Rejection:", err);
+  gracefulShutdown("unhandledRejection");
+});
+
+// Gestion des exceptions non capturées
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  server.close(async () => {
+    await disconnectDB();
+    process.exit(1);
+  });
+});
+
+// Gestion de l'arrêt du serveur
+process.on("SIGINT", async () => {
+  console.log("Arrêt du serveur...");
+  server.close(async () => {
+    await disconnectDB();
+    process.exit(0);
+  });
+});
+
+
+//import des routes
+import authRoutes from './routes/authRoutes';
