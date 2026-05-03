@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 export default {
   server: {
     proxy: {
-      '/api': 'http://localhost:xxxx', // URL de ton backend
+      '/api': 'http://localhost:xxxx', // url du backend
     },
   },
 };*/
