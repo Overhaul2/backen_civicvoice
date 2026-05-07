@@ -19,3 +19,4 @@ _thumbs/
 */expressionengine/cache/*
 
 /src/generated/prisma
+.env

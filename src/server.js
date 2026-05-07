@@ -1,10 +1,28 @@
 const dotenv = require('dotenv');
 const express = require('express');
 const { connectDB, disconnectDB } = require('./config/db');
+const helmet =require('helmet');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 
 
 const app = express();
 const PORT = process.env.PORT || 5002;
+
+
+// securite et parsing
+app.use(helmet());
+app.use(cors({origin: process.env.CORS_ORIGIN || "http://localhost:5002"|| "*"}));
+app.use(express.json({limit: '5mb'})); // Limite de taille pour les requêtes JSON
+
+// liliter les requette pour eviter les attaques de force brute
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limite chaque IP à 100 requêtes par fenêtre de temps
+  message: "Trop de requêtes, veuillez réessayer dans 15 minutes."
+});
+app.use(limiter);
+
 
 // Middleware pour parser le JSON 
 app.use(express.json());
@@ -12,7 +30,7 @@ app.use(express.json());
 dotenv.config();
 
 app.get('/', (req, res) => {  
-  res.send('Hello World!');
+  res.send('Le serveur fonctionne correctement !');
 });
 
 let server;
@@ -75,4 +93,4 @@ process.on("SIGINT", async () => {
 
 
 //import des routes
-import authRoutes from './routes/authRoutes';
+// import authRoutes from './routes/authRoutes';
