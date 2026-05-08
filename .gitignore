@@ -20,3 +20,4 @@ _thumbs/
 
 /src/generated/prisma
 .env
+node_modules/
