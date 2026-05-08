@@ -14,6 +14,7 @@ datasource db {
 model User {
   id          String  @id @default(uuid())
   email       String  @unique
+  idCardNumber String? @unique
   phoneNumber String? @unique
   password    String
 
@@ -53,6 +54,9 @@ model Vote {
   optionId       String
   consultationId String
 
+  nullifier  String  @unique // empêche double vote sans exposer userId
+  merkleLeaf String? // pour arbre de Merkle
+
   hashVote    String //hash du vote
   txHash      String? //transaction blochaine
   blockNumber Int?
@@ -83,13 +87,20 @@ model Engagement {
 }
 
 model Consultation {
-  id          String   @id @default(uuid())
+  id          String             @id @default(uuid())
   title       String
+  imageUrl    String?
   description String
   status      ConsultationStatus @default(OUVERTE)
+
   creatorId   String
-  creator     User     @relation("AdminConsultations", fields: [creatorId], references: [id])
-  createdAt   DateTime @default(now())
+  creator     User               @relation("AdminConsultations", fields: [creatorId], references: [id])
+  
+  startAt     DateTime           @default(now())
+  endAt       DateTime
+  createdAt   DateTime           @default(now())
+
+  resultHash  String?
 
   votes       Vote[]
   options     Option[]
@@ -109,10 +120,44 @@ model BlockchainLog {
   id         String  @id @default(uuid())
   entityType String // "vote" ou "engagement"
   entityId   String //id du vote ou de l'engagement
+
   hash       String
   txHash     String? //transaction blochaine
+
+  blockNumber Int?
+
   network    String //"polygon", etc.
   status     String //ex: "pending", "confirmed", "failed"
+  explorerUrl String? //lien vers l'explorateur de blockchain pour cette transaction
+
+  createdAt DateTime @default(now())
+}
+
+model MerkleRoot {
+  id             String   @id @default(uuid())
+  consultationId String
+  rootHash       String
+  txHash         String?
+  createdAt      DateTime @default(now())
+}
+//regrouper tous les votes  envoyer UN SEUL hash sur blockchain
+
+model ResultSnapshot {
+  id             String   @id @default(uuid())
+  consultationId String
+  resultJson     Json
+  resultHash     String
+  txHash         String?
+  createdAt      DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  entity    String
+  entityId  String
+  userId    String?
+  metadata  Json?
 
   createdAt DateTime @default(now())
 }
