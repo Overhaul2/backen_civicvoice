@@ -33,7 +33,9 @@ app.use(
 app.use(express.json());
 //import des routes
 const authRoute = require("./routes/authRoutes");
+const consultRoute = require("./routes/consult.routes")
 app.use("/api/auth", authRoute);
+app.use("/api/consult",consultRoute);
 dotenv.config();
 
 app.get('/', (req, res) => {

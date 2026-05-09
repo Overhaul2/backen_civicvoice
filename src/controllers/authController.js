@@ -10,7 +10,7 @@ const bcrypt = require('bcrypt');
 const register = async (req, res) => {
     try {
         const dto = new CreateUserDto(req.body);
-        dto.validate;
+        dto.validate();
 
 
         const existUser = await prisma.user.findFirst({
