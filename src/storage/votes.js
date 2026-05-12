@@ -1,2 +1,2 @@
 
-export const votes = []
+module.exports = { votes: [] }

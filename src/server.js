@@ -33,9 +33,14 @@ app.use(
 app.use(express.json());
 //import des routes
 const authRoute = require("./routes/authRoutes");
-const consultRoute = require("./routes/consult.routes")
+const consultRoute = require("./routes/consult.routes");
+const voteRoute = require("./routes/vote.routes");
+const engRoute = require("./routes/eng.routes");
 app.use("/api/auth", authRoute);
 app.use("/api/consult",consultRoute);
+app.use("/api/eng",engRoute);
+app.use("/api/vote",voteRoute);
+
 dotenv.config();
 
 app.get('/', (req, res) => {

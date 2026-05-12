@@ -17,7 +17,7 @@ const engController = require('../controllers/eng.controller');
  *       200:
  *         description: Succès
  */
-router.post('/add',authenticate,isAdmin,engController.create);
+router.post('/add',authenticate,isAdmin,engController.createEngagement);
 /**
  * @swagger
  * /api/eng/update/:id:
@@ -29,7 +29,7 @@ router.post('/add',authenticate,isAdmin,engController.create);
  *       200:
  *         description: Succès
  */
-router.put('/update/:id',authenticate,isAdmin,engController.update);
+router.put('/update/:id',authenticate,isAdmin,engController.updateEngagementStatus);
 /**
  * @swagger
  * /api/eng/delete/:id:
@@ -41,4 +41,6 @@ router.put('/update/:id',authenticate,isAdmin,engController.update);
  *       200:
  *         description: Succès
  */
-router.delete('/delete/:id',authenticate,isAdmin,engController.remove);
+router.delete('/delete/:id',authenticate,isAdmin,engController.deleteEngagement);
+
+module.exports = router;

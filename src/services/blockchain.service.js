@@ -5,7 +5,7 @@ const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
 const wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
 
 const ABI = [
-    "function submitMerkleRoot(bytes32,bytes32)"
+    "function submitMerkleRoot(bytes32,bytes32)","function addEngagement(bytes32 engId, bytes32 contentHash, string calldata metadataURI) external"
 ]
 
 const contract = new ethers.Contract(process.env.BLOCKCHAIN_CONTRACT_ADDRESS, ABI, wallet);
@@ -16,15 +16,6 @@ const submitMerkleRoot = async (root, consultId) => {
     return tx.hash;
 }
 
-const ABI = [
-    "function addEngagement(bytes32 engId, bytes32 contentHash, string calldata metadataURI) external"
-]
-
-const contract = new ethers.Contract(
-    process.env.CONTRACT_ADDRESS,
-    ABI,
-    wallet
-);
 
 const anchorEngagementOnChain = async (
     engId,

@@ -2,20 +2,27 @@ const { keccak256, toUtf8Bytes } = require("ethers");
 const { prisma } = require("../config/db");
 const { generateEngagementHash } = require("../utils/hash");
 const { anchorEngagementOnChain } = require("../services/blockchain.service");
+const CreateEngagementDTO = require("../utils/dto/create-engagement.dto");
 
 const createEngagement = async (req, res) => {
     try {
-        const {
-            title,
-            description,
-            consultationId,
-            metadataURI
-        } = req.body;
+        const dto = new CreateEngagementDTO(req.body);
+        const validation = dto.validate();
+
+        if (!validation.valid) {
+
+            return res.status(400).json(
+                ApiResponse.error(
+                    "Validation failed",
+                    validation.errors
+                )
+            );
+        }
 
         const creatorId = req.user.id;
 
         const consultation = await prisma.consultation.findUnique({
-            where: { id: consultationId },
+            where: { id: dto.consultationId },
         });
 
         if (!consultation) {
@@ -24,10 +31,11 @@ const createEngagement = async (req, res) => {
             });
         }
 
+        // hashage
         const hashEngagement = generateEngagementHash(
-            title,
-            description,
-            consultationId,
+            dto.title,
+            dto.description,
+            dto.consultationId,
         );
 
         // engagement ID blockchain
@@ -46,23 +54,34 @@ const createEngagement = async (req, res) => {
         const engagement =
             await prisma.engagement.create({
                 data: {
-                    title,
-                    description,
-                    consultationId,
+                    title: dto.title,
+                    description: dto.description,
+                    consultationId:
+                        dto.consultationId,
                     creatorId,
-                    metadataURI,
+                    metadataURI:
+                        dto.metadataURI,
                     hashEngagement,
                     txHash:
-                        blockchainResult.txHash
+                        chain.txHash
+                },
+                include: {
+                    author: true
                 }
             });
 
-        return res.status(201).json({
-            success: true,
-            message:
-                "Engagement enregistré on-chain",
-            engagement
-        });
+        // DTO RESPONSE
+        const response =
+            EngagementMapper.toDTO(
+                engagement
+            );
+
+        return res.status(201).json(
+            ApiResponse.success(
+                response,
+                "Engagement créé on-chain"
+            )
+        );
 
     } catch (error) {
         console.error("Error creating engagement:", error);
@@ -73,41 +92,62 @@ const createEngagement = async (req, res) => {
 }
 
 
-const getAllEngagements = async (
-    req,
-    res
-) => {
+const getAllEngagements =
+    async (req, res) => {
 
-    try {
+        try {
 
-        const engagements =
-            await prisma.engagement.findMany({
-                include: {
-                    consultation: true,
-                    author: {
-                        select: {
-                            id: true,
-                            email: true
+            const page =
+                parseInt(req.query.page) || 1;
+
+            const limit =
+                parseInt(req.query.limit) || 10;
+
+            const skip =
+                (page - 1) * limit;
+
+            const [data, total] =
+                await Promise.all([
+                    prisma.engagement.findMany({
+                        skip,
+                        take: limit,
+                        include: {
+                            author: true
+                        },
+                        orderBy: {
+                            createdAt: "desc"
                         }
+                    }),
+
+                    prisma.engagement.count()
+                ]);
+
+            return res.json(
+                ApiResponse.success({
+                    items:
+                        EngagementMapper.toDTOList(
+                            data
+                        ),
+
+                    pagination: {
+                        page,
+                        limit,
+                        total,
+                        pages:
+                            Math.ceil(total / limit)
                     }
-                },
-                orderBy: {
-                    createdAt: "desc"
-                }
-            });
+                })
+            );
 
-        return res.status(200).json({
-            engagements
-        });
+        } catch (error) {
 
-    } catch (error) {
-
-        return res.status(500).json({
-            error:
-                "Erreur récupération"
-        });
-    }
-};
+            return res.status(500).json(
+                ApiResponse.error(
+                    "Erreur récupération"
+                )
+            );
+        }
+    };
 
 const getEngagementById = async (
     res
@@ -181,13 +221,17 @@ const updateEngagementStatus = async (
     }
 };
 
+const deleteEngagement = async(req,res)=>{
+    
+}
+
 
 module.exports = {
     createEngagement,
     getAllEngagements,
     getEngagementById,
     updateEngagementStatus,
-    // deleteEngagement
+    deleteEngagement
 }
 
 

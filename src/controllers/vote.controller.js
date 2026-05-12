@@ -1,10 +1,10 @@
-import { keccak256 } from "ethers";
-import { hashVote } from "../utils/hash";
-import { toUtf8Bytes } from "ethers";
-import { votes } from "../storage/votes";
+const { keccak256 } =require("ethers");
+const { hashVote } = require("../utils/hash");
+const { toUtf8Bytes } = require("ethers");
+const { votes } = require("../storage/votes");
 
 
-export const submitVote = async (req, res) => {
+const submitVote = async (req, res) => {
     try {
         const { userId, optionId, consultationId } = req.body;
 
@@ -34,7 +34,7 @@ export const submitVote = async (req, res) => {
     }
 }
 
-export const submitMerkleRootController = async (req, res) => {
+const submitMerkleRootController = async (req, res) => {
     try {
         const consultId = req.body.consultId;
         if (!consultId) {
@@ -68,7 +68,7 @@ export const submitMerkleRootController = async (req, res) => {
 }
 
 
-export const generateProofController = async (req, res) => {
+const generateProofController = async (req, res) => {
     try {
         const {
             consultId, userId
@@ -114,4 +114,7 @@ export const generateProofController = async (req, res) => {
             Error: ":::::::: Champs manquants"
         })
     }
+}
+module.exports = {
+    submitVote ,submitMerkleRootController,generateProofController
 }

@@ -1,7 +1,13 @@
-import { submitVote ,submitMerkleRootController,generateProofController} from "../controllers/vote.controller";
+const express = require('express');
 
+const {
+  submitVote,
+  submitMerkleRootController,
+  generateProofController,
+} = require("../controllers/vote.controller");
 
 const router = express.Router();
+
 /**
  * @swagger
  * /api/vote/submit:
@@ -41,4 +47,4 @@ router.post("/submit-merkle",submitMerkleRootController);
  */
 router.post("/proofs",generateProofController);
 
-export default router;
+module.exports = router;
