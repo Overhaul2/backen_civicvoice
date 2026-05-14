@@ -3,6 +3,9 @@ const { prisma } = require("../config/db");
 const { generateEngagementHash } = require("../utils/hash");
 const { anchorEngagementOnChain } = require("../services/blockchain.service");
 const CreateEngagementDTO = require("../utils/dto/create-engagement.dto");
+const EngagementMapper = require("../utils/mapper/eng.mapper");
+const ApiResponse = require("../utils/dto/api.response");
+
 
 const createEngagement = async (req, res) => {
     try {
@@ -10,7 +13,6 @@ const createEngagement = async (req, res) => {
         const validation = dto.validate();
 
         if (!validation.valid) {
-
             return res.status(400).json(
                 ApiResponse.error(
                     "Validation failed",
@@ -31,50 +33,64 @@ const createEngagement = async (req, res) => {
             });
         }
 
-        // hashage
+        // 1. check ownership
+        if (consultation.creatorId !== creatorId) {
+            return res.status(403).json({
+                error: "Accès refusé : vous n'êtes pas le créateur de cette consultation"
+            });
+        }
+
+        // 2. check duplicate engagement
+        const existingEngagement = await prisma.engagement.findFirst({
+            where: {
+                consultationId: dto.consultationId,
+                title: dto.title,
+                description: dto.description,
+            }
+        });
+
+        if (existingEngagement) {
+            return res.status(409).json({
+                error: "Un engagement similaire existe déjà"
+            });
+        }
+
+        // hash
         const hashEngagement = generateEngagementHash(
             dto.title,
             dto.description,
             dto.consultationId,
         );
 
-        // engagement ID blockchain
+        // blockchain id
         const engagementBytes32 = keccak256(
-            toUtf8Bytes(`${consultationId}-${Date.now()}`)
+            toUtf8Bytes(`${dto.consultationId}-${Date.now()}`)
         );
 
         // blockchain
         const blockchainResult = await anchorEngagementOnChain(
             engagementBytes32,
             hashEngagement,
-            metadataURI || "",
+            dto.metadataURI || "",
         );
 
         // save db
-        const engagement =
-            await prisma.engagement.create({
-                data: {
-                    title: dto.title,
-                    description: dto.description,
-                    consultationId:
-                        dto.consultationId,
-                    creatorId,
-                    metadataURI:
-                        dto.metadataURI,
-                    hashEngagement,
-                    txHash:
-                        chain.txHash
-                },
-                include: {
-                    author: true
-                }
-            });
+        const engagement = await prisma.engagement.create({
+            data: {
+                title: dto.title,
+                description: dto.description,
+                consultationId: dto.consultationId,
+                creatorId,
+                metadataURI: dto.metadataURI,
+                hashEngagement,
+                txHash: blockchainResult.txHash
+            },
+            include: {
+                author: true
+            }
+        });
 
-        // DTO RESPONSE
-        const response =
-            EngagementMapper.toDTO(
-                engagement
-            );
+        const response = EngagementMapper.toDTO(engagement);
 
         return res.status(201).json(
             ApiResponse.success(
@@ -85,11 +101,12 @@ const createEngagement = async (req, res) => {
 
     } catch (error) {
         console.error("Error creating engagement:", error);
+
         return res.status(500).json({
             error: "Erreur interne du serveur"
         });
     }
-}
+};
 
 
 const getAllEngagements =
@@ -221,8 +238,8 @@ const updateEngagementStatus = async (
     }
 };
 
-const deleteEngagement = async(req,res)=>{
-    
+const deleteEngagement = async (req, res) => {
+
 }
 
 

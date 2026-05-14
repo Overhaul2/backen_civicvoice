@@ -22,3 +22,4 @@ _thumbs/
 .env
 node_modules/
 node_modules
+prisma/migrations/

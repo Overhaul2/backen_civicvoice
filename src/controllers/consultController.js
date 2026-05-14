@@ -1,4 +1,5 @@
 const { prisma } = require("../config/db");
+const { performAnchoring } = require("../services/blockchain.service");
 const CreateConsultationDTO = require("../utils/dto/create-consultation.dto");
 const ConsultationResponseDTO = require("../utils/dto/response.consultation.dO");
 const UpdateConsultationDTO = require("../utils/dto/update-consultation.dto ");
@@ -208,22 +209,100 @@ const remove = async (req, res) => {
         });
     }
 };
+
 const getAll = async (req, res) => {
     try {
+
         const consultations = await prisma.consultation.findMany({
             include: {
-                options: true,
-                creator: true,
+
+                creator: {
+                    select: {
+                        id: true,
+                        email: true,
+                    },
+                },
+
+                options: {
+                    include: {
+                        _count: {
+                            select: {
+                                votes: true,
+                            },
+                        },
+                    },
+                },
             },
+
             orderBy: {
                 createdAt: "desc",
             },
         });
-        return res.json(consultations.map(ConsultationResponseDTO));
+
+        // Transformation propre DTO
+        const formatted = consultations.map((consultation) => ({
+
+            id: consultation.id,
+
+            title: consultation.title,
+
+            imageUrl: consultation.imageUrl,
+
+            description: consultation.description,
+
+            status: consultation.status,
+
+            startAt: consultation.startAt,
+
+            endAt: consultation.endAt,
+
+            createdAt: consultation.createdAt,
+
+            creator: consultation.creator,
+
+            options: consultation.options.map((option) => ({
+
+                id: option.id,
+
+                label: option.label,
+
+                consultationId: option.consultationId,
+
+                // Vote count calculé automatiquement
+                voteCount: option._count.votes,
+
+            })),
+        }));
+
+        return res.status(200).json(formatted);
+
     } catch (error) {
-        return res.status(500).json({ message: "Erreur Interne" });
+
+        console.error(error);
+
+        return res.status(500).json({
+            message: "Erreur Interne",
+        });
     }
-}
+};
+
+
+// const getAll = async (req, res) => {
+//     try {
+//         const consultations = await prisma.consultation.findMany({
+//             include: {
+//                 options: true,
+//                 creator: true,
+//             },
+//             orderBy: {
+//                 createdAt: "desc",
+//             },
+//         });
+//         return res.json(consultations.map(ConsultationResponseDTO));
+//     } catch (error) {
+//         return res.status(500).json({ message: "Erreur Interne" });
+//     }
+// }
 
 const getOne = async (req, res) => {
     try {
@@ -245,10 +324,35 @@ const getOne = async (req, res) => {
     }
 }
 
+const closeConsultationController = async (req, res) => {
+    try {
+        const { consultationId } = req.body;
+
+        if (!consultationId) {
+            return res.status(400).json({ error: "ID de consultation requis" });
+        }
+        // On délègue toute la logique complexe au service
+        const result = await performAnchoring(consultationId);
+
+        res.json({
+            success: true,
+            message: "Consultation fermée et ancrée avec succès",
+            txHash: result.txHash,
+            blockNumber: result.blockNumber,
+            votesAnchored: result.votesCount,
+            rootHash: result.rootHash
+        });
+    } catch (error) {
+        console.error("Erreur Ancrage:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 module.exports = {
     create,
     update,
     remove,
     getAll,
-    getOne
+    getOne,
+    closeConsultationController,
 }

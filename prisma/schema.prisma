@@ -80,7 +80,7 @@ model Engagement {
   hashEngagement String //hash de l'engagement
   txHash         String? //transaction blochaine
 
-  metadataURI    String?
+  metadataURI    String? @default("test")
 
   author       User         @relation(fields: [creatorId], "AdminEngagements", references: [id])
   consultation Consultation @relation(fields: [consultationId], references: [id])

@@ -37,6 +37,9 @@ class CreateConsultationDTO {
         if (!this.endAt) {
             throw new Error("La date de fin est obligatoire");
         }
+        if (startDate < new Date()) {
+            throw new Error("La date de début ne peut pas être dans le passé");
+        }
 
         const startDate = new Date(this.startAt);
         const endDate = new Date(this.endAt);
