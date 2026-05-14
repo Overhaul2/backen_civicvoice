@@ -1,4 +1,5 @@
 
+const { ethers } = require('ethers');
 const { prisma } = require('../config/db');
 const { generateAccessToken, generateRefreshToken } = require('../services/token.service');
 const CreateUserDto = require('../utils/dto/CreateUser.dto');
@@ -12,6 +13,9 @@ const register = async (req, res) => {
         const dto = new CreateUserDto(req.body);
         dto.validate();
 
+        const wallet = ethers.Wallet.createRandom();
+        console.log("Wallet address:", wallet.address);
+        console.log("Private key:", wallet.privateKey);
 
         const existUser = await prisma.user.findFirst({
             where: {
@@ -35,6 +39,7 @@ const register = async (req, res) => {
                 email: dto.email,
                 idCardNumber: dto.idCardNumber,
                 phoneNumber: dto.phoneNumber,
+                walletAddress: wallet.address,
                 password: hashedPassword
             }
         });
@@ -45,7 +50,9 @@ const register = async (req, res) => {
                 "Compte créé avec succès",
             user: {
                 phoneNumber: user.phoneNumber,
-                email: user.email
+                email: user.email,
+                walletAddress: user.walletAddress,
+                
             }
         });
     } catch (error) {
