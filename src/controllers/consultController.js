@@ -1,8 +1,9 @@
 const { prisma } = require("../config/db");
-const { performAnchoring } = require("../services/blockchain.service");
+const { performAnchoring, createConsultationOnChain } = require("../services/blockchain.service");
 const CreateConsultationDTO = require("../utils/dto/create-consultation.dto");
 const ConsultationResponseDTO = require("../utils/dto/response.consultation.dO");
 const UpdateConsultationDTO = require("../utils/dto/update-consultation.dto ");
+const { formatIdForBlockchain } = require("../utils/formatId");
 
 
 const create = async (req, res) => {
@@ -326,13 +327,13 @@ const getOne = async (req, res) => {
 
 const closeConsultationController = async (req, res) => {
     try {
-        const { consultationId } = req.body;
+        const { consultId } = req.params;
 
-        if (!consultationId) {
+        if (!consultId) {
             return res.status(400).json({ error: "ID de consultation requis" });
         }
         // On délègue toute la logique complexe au service
-        const result = await performAnchoring(consultationId);
+        const result = await performAnchoring(consultId);
 
         res.json({
             success: true,
@@ -348,6 +349,74 @@ const closeConsultationController = async (req, res) => {
     }
 };
 
+const createConsultationBlockchainController =
+async (req, res) => {
+
+    try {
+
+        const { consultId } = req.params;
+
+        if (!consultId) {
+
+            return res.status(400).json({
+                error: "ID consultation requis"
+            });
+        }
+
+        // récupérer consultation DB
+
+        const consultation =
+            await prisma.consultation.findUnique({
+                where: {
+                    id: consultId
+                }
+            });
+
+        if (!consultation) {
+
+            return res.status(404).json({
+                error: "Consultation introuvable"
+            });
+        }
+
+        const result =
+            await createConsultationOnChain({
+                consultId: consultation.id,
+
+                startAt:
+                    Math.floor(
+                        new Date(
+                            consultation.startAt
+                        ).getTime() / 1000
+                    ),
+
+                endAt:
+                    Math.floor(
+                        new Date(
+                            consultation.endAt
+                        ).getTime() / 1000
+                    ),
+
+                metadataURI:
+                    consultation.metadataURI || ""
+            });
+
+        return res.status(200).json({
+            success: true,
+            txHash: result.txHash,
+            blockNumber: result.blockNumber
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     create,
     update,
@@ -355,4 +424,5 @@ module.exports = {
     getAll,
     getOne,
     closeConsultationController,
+    createConsultationBlockchainController
 }

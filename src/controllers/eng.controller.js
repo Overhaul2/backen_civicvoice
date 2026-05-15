@@ -33,14 +33,14 @@ const createEngagement = async (req, res) => {
             });
         }
 
-        // 1. check ownership
+        // check ownership
         if (consultation.creatorId !== creatorId) {
             return res.status(403).json({
                 error: "Accès refusé : vous n'êtes pas le créateur de cette consultation"
             });
         }
 
-        // 2. check duplicate engagement
+        // check duplicate engagement
         const existingEngagement = await prisma.engagement.findFirst({
             where: {
                 consultationId: dto.consultationId,

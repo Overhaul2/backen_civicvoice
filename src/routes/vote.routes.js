@@ -4,7 +4,9 @@ const {
   submitVote,
   submitMerkleRootController,
   generateProofController,
-  getUserProofController
+  getUserProofController,
+  checkUserVote,
+  startVotingController,
 } = require("../controllers/vote.controller");
 const { authenticate } = require('../middlewares/authMiddleware');
 
@@ -204,6 +206,68 @@ router.get(
   "/user-proofs/:consultationId",
   authenticate,
   getUserProofController
+);
+
+/**
+ * @swagger
+ * /api/vote/check/{consultationId}:
+ *   get:
+ *     summary: Vérifier si l'utilisateur a déjà voté
+ *     tags:
+ *       - Vote
+ *
+ *     security:
+ *       - bearerAuth: []
+ *
+ *     parameters:
+ *       - in: path
+ *         name: consultationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *
+ *     responses:
+ *       200:
+ *         description: Résultat de vérification
+ */
+router.get(
+    "/check/:consultationId",
+    authenticate,
+    checkUserVote
+);
+
+/**
+ * @swagger
+ * /api/vote/startVoting/{consultId}:
+ *   post:
+ *     summary: Démarrer le vote sur la blockchain
+ *     tags:
+ *       - Vote
+ *
+ *     security:
+ *       - bearerAuth: []
+ *
+ *     parameters:
+ *       - in: path
+ *         name: consultId
+ *         required: true
+ *         schema:
+ *           type: string
+ *
+ *     responses:
+ *       200:
+ *         description: Vote démarré avec succès
+ *
+ *       401:
+ *         description: Non authentifié
+ *
+ *       500:
+ *         description: Erreur interne serveur
+ */
+router.post(
+    "/startVoting/:consultId",
+    authenticate,
+    startVotingController
 );
 
 module.exports = router;

@@ -264,4 +264,104 @@ router.get('/allConsult', authenticate, consultController.getAll);
  */
 router.get('/findById/:id', authenticate, consultController.getOne);
 
+/**
+ * @swagger
+ * /api/consult/close/{consultId}:
+ *   post:
+ *     summary: Clôturer une consultation et ancrer les résultats sur la blockchain
+ *     description: Met fin à la période de vote, calcule la racine de Merkle et soumet l'ancrage cryptographique sur la blockchain.
+ *     tags:
+ *       - Consultation
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - consultationId
+ *             properties:
+ *               consultationId:
+ *                 type: string
+ *                 description: L'identifiant unique de la consultation à fermer
+ *                 example: 65f123abc456def789
+ *     responses:
+ *       200:
+ *         description: Consultation fermée et ancrée avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Consultation fermée et ancrée avec succès"
+ *                 txHash:
+ *                   type: string
+ *                   description: Hash de la transaction blockchain
+ *                   example: "0x74ba...f31a"
+ *                 blockNumber:
+ *                   type: integer
+ *                   description: Numéro du bloc contenant la transaction
+ *                   example: 154230
+ *                 votesAnchored:
+ *                   type: integer
+ *                   description: Nombre de votes inclus dans l'ancrage
+ *                   example: 150
+ *                 rootHash:
+ *                   type: string
+ *                   description: Racine de l'arbre de Merkle ancrée
+ *                   example: "a1b2c3d4..."
+ *       400:
+ *         description: Requête invalide (ID manquant ou consultation déjà fermée)
+ *       401:
+ *         description: Non authentifié
+ *       500:
+ *         description: Erreur lors du processus d'ancrage blockchain
+ */
+router.post('/close/:consultId', authenticate, consultController.closeConsultationController);
+
+/**
+ * @swagger
+ * /api/consult/addConsultOnChain/{consultId}:
+ *   post:
+ *     summary: Créer une consultation sur la blockchain
+ *     tags:
+ *       - Consultation
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID de la consultation
+ *         schema:
+ *           type: string
+ *           example: 02118281-2fb4-45dc-9136-502b85eaaa6f
+ *     responses:
+ *       200:
+ *         description: Consultation créée sur la blockchain
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 txHash:
+ *                   type: string
+ *                   description: Hash de la transaction blockchain
+ *                   example: "0x74ba...f31a"
+ *       400:
+ *         description: Requête invalide (ID manquant)
+ *       401:
+ *         description: Non authentifié
+ *       500:
+ *         description: Erreur lors du processus de création sur la blockchain
+ */
+router.post("/addConsultOnChain/:consultId", authenticate, consultController.createConsultationBlockchainController);
+
 module.exports = router;
