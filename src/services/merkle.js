@@ -1,5 +1,5 @@
 const { keccak256 } = require("ethers");
-const MerkleTree = require("merkletreejs");
+const {MerkleTree} = require("merkletreejs");
 
 const generateConsultationTree = (votes) => {
     // On transforme les hashVote de la DB en buffers pour MerkleTree.js

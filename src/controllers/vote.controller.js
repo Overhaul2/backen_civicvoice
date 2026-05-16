@@ -1,9 +1,12 @@
-const { keccak256, toUtf8Bytes, solutils } = require("ethers");
+const { keccak256, toUtf8Bytes } = require("ethers");
 const { hashVote } = require("../utils/hash");
 const { votes } = require("../storage/votes");
 const { prisma } = require("../config/db");
 const SubmitVoteDTO = require("../utils/dto/vote.submit.dto");
 const sendUserVoteConfirmation = require("../services/notification.service");
+const { getVoteProof } = require("../services/merkle");
+const { formatIdForBlockchain } = require("../utils/formatId");
+const { startVotingOnChain } = require("../services/blockchain.service");
 
 
 const submitVote = async (req, res) => {
@@ -92,83 +95,104 @@ const submitVote = async (req, res) => {
 
 const submitMerkleRootController = async (req, res) => {
     try {
-        const consultId = req.body.consultId;
+        const { consultId } = req.body;
         if (!consultId) {
-            return res.status(400).json({ error: "Missing consultation ID" });
+            return res.status(400).json({
+                error: "consultId requis"
+            });
+        }
+        // récupérer votes DB
+        const consultationVotes = await prisma.vote.findMany({
+            where: {
+                consultationId: consultId
+            },
+            orderBy: {
+                createdAt: "asc"
+            }
+        });
+
+        if (consultationVotes.length === 0) {
+            return res.status(400).json({
+                error: "Aucun vote trouvé"
+            });
         }
 
-        const filteredVotes = votes.filter(vote => vote.consultId === consultId);
-        if (filteredVotes.length === 0) {
-            return res.status(400).json({ error: "pas de votes pour cette consultation" });
-        }
+        // génération arbre
+        const { root } =
+            generateConsultationTree(consultationVotes);
 
-        const consultationBytes32 = keccak256(
-            toUtf8Bytes(consultId)
+        // format blockchain
+        const consultIdBytes32 =
+            formatIdForBlockchain(consultId);
+
+        // envoi blockchain
+        const result = await submitMerkleRoot(
+            root,
+            consultIdBytes32
         );
-
-        const txHash = await sendMerkleRoot(consultationBytes32, root);
 
         return res.status(200).json({
             success: true,
             merkleRoot: root,
-            totalvotes: filteredVotes.length,
-            txHash,
+            totalVotes: consultationVotes.length,
+            txHash: result.txHash,
+            blockNumber: result.blockNumber
         });
     } catch (error) {
-        console.error("ereur:::::::::", error);
+        console.error(error);
         return res.status(500).json({
-            error: ":::::::::::::Erreur blockchain"
-        })
+            error: error.message
+        });
     }
-
 }
 
 
 const generateProofController = async (req, res) => {
     try {
-        const {
-            consultId, userId
-        } = req.body;
-
+        const { consultId, userId } = req.body;
         if (!consultId || !userId) {
             return res.status(400).json({
                 error: "Champs manquants"
             });
         }
 
-        const filteredVotes = votes.filter(
-            v => v.consultId === consultId
+        const allVotes = await prisma.vote.findMany({
+            where: {
+                consultationId: consultId
+            },
+            orderBy: {
+                createdAt: "asc"
+            }
+        });
+
+        const vote = allVotes.find(
+            v => v.userId === userId
         );
-        const vote =
-            filteredVotes.find === (userId);
-
-        const { tree } = buldMerkleTree(filteredVotes);
-
-        const votes = filteredVotes.find(v => v.userId === userId);
 
         if (!vote) {
-            if (!vote) {
-                return vote.status().json({
-                    error: "Vote introuvable"
-                });
-            }
+            return res.status(404).json({
+                error: "Vote introuvable"
+            });
         }
 
-        const proof =
-            tree.getHexProof(Buffer.from(vote.hashVote.slice(2), "hex"));
+        const proofData = getVoteProof(
+            allVotes,
+            vote.hashVote
+        );
 
         return res.status(200).json({
             success: true,
-            voteHash: vote.hash,
-            proof
+            voteHash: vote.hashVote,
+            proof: proofData.proof
         });
 
-
     } catch (error) {
-        console.error("::::::", Error);
+
+        console.error(error);
+
         return res.status(500).json({
-            Error: ":::::::: Champs manquants"
-        })
+            error: error.message
+        });
     }
 }
 
@@ -177,6 +201,19 @@ const getUserProofController = async (req, res) => {
     try {
         const { consultationId } = req.params;
         const userId = req.user.id;
+
+        const option = await prisma.voteOption.findFirst({
+            where: {
+                id: dto.optionId,
+                consultationId: dto.consultationId
+            }
+        });
+
+        if (!option) {
+            return res.status(400).json({
+                error: "Option invalide pour cette consultation"
+            });
+        }
 
         //  Récupérer tous les votes de la consultation pour reconstruire l'arbre
         const allVotes = await prisma.vote.findMany({
@@ -216,7 +253,113 @@ const getUserProofController = async (req, res) => {
     }
 };
 
+const checkUserVote = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { consultId } = req.params;
+
+        const vote = await prisma.vote.findFirst({
+            where: {
+                userId,
+                consultationId: consultId,
+            },
+        });
+
+        return res.json({
+            hasVoted: !!vote,
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: "Erreur interne",
+        });
+    }
+};
+
+
+const startVotingController = async (req, res) => {
+
+    try {
+        const { consultId } = req.params;
+        // VALIDATION
+        if (!consultId) {
+            return res.status(400).json({
+                success: false,
+                error: "consultId requis"
+            });
+        }
+        // CHECK CONSULTATION
+        const consultation =
+            await prisma.consultation.findUnique({
+                where: {
+                    id: consultId
+                }
+            });
+
+        if (!consultation) {
+            return res.status(404).json({
+                success: false,
+                error: "Consultation introuvable"
+            });
+        }
+        // CHECK STATUS
+        if (consultation.status !== "OUVERTE") {
+            return res.status(400).json({
+                success: false,
+                error: "Consultation déjà démarrée ou fermée"
+            });
+        }
+        // START ON BLOCKCHAIN
+        const blockchainResult =
+            await startVotingOnChain(
+                consultId
+            );
+        // UPDATE DATABASE
+        const updatedConsultation =
+            await prisma.consultation.update({
+                where: {
+                    id: consultId
+                },
+                data: {
+                    status: "OUVERTE"
+                }
+            });
+
+        // RESPONSE
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "Vote démarré avec succès",
+
+            consultation:
+                updatedConsultation,
+
+            blockchain: {
+                txHash:
+                    blockchainResult.txHash,
+
+                blockNumber:
+                    blockchainResult.blockNumber
+            }
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Erreur start voting controller:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            error:
+                "Erreur lors du démarrage du vote"
+        });
+    }
+};
 
 module.exports = {
-    submitVote, submitMerkleRootController, generateProofController, getUserProofController
+    submitVote, submitMerkleRootController, generateProofController, getUserProofController, checkUserVote, startVotingController
 }

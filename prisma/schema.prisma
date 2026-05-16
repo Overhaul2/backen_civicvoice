@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,59 +7,49 @@ datasource db {
 }
 
 model User {
-  id          String  @id @default(uuid())
-  email       String  @unique
-  idCardNumber String? @unique
-  phoneNumber String? @unique
-  password    String
-
-  role          Role    @default(USER) @map("role_user")
-  walletAddress String? @unique // lier identifiant de l'utilisateur à son adresse de portefeuille pour les interactions blockchain
-
-  isVerified Boolean  @default(false)
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  sessions AuthSession[]
-  votes    Vote[]
-
+  id                   String         @id @default(uuid())
+  email                String         @unique
+  idCardNumber         String?        @unique
+  phoneNumber          String?        @unique
+  password             String
+  role                 Role           @default(USER) @map("role_user")
+  walletAddress        String?        @unique
+  isVerified           Boolean        @default(false)
+  isActive             Boolean        @default(true)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  sessions             AuthSession[]
   createdConsultations Consultation[] @relation("AdminConsultations")
   createdEngagements   Engagement[]   @relation("AdminEngagements")
+  votes                Vote[]
 }
 
 model AuthSession {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  refreshToken String  @unique
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
   userAgent    String?
   ipAddress    String?
-
-  isRevoked Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  expiresAt DateTime
+  isRevoked    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  user         User     @relation(fields: [userId], references: [id])
 }
 
 model Vote {
-  id             String @id @default(uuid())
+  id             String       @id @default(uuid())
   userId         String
   optionId       String
   consultationId String
-
-  nullifier  String  @unique // empêche double vote sans exposer userId
-  merkleLeaf String? // pour arbre de Merkle
-
-  hashVote    String //hash du vote
-  txHash      String? //transaction blochaine
-  blockNumber Int?
-  createdAt   DateTime @default(now())
-
-  user         User         @relation(fields: [userId], references: [id])
-  option       Option       @relation(fields: [optionId], references: [id])
-  consultation Consultation @relation(fields: [consultationId], references: [id])
+  nullifier      String       @unique
+  merkleLeaf     String?
+  hashVote       String
+  txHash         String?
+  blockNumber    Int?
+  createdAt      DateTime     @default(now())
+  consultation   Consultation @relation(fields: [consultationId], references: [id])
+  option         Option       @relation(fields: [optionId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
 
   @@unique([userId, consultationId])
 }
@@ -76,16 +61,12 @@ model Engagement {
   status         EngagementStatus @default(EN_ATTENTE)
   consultationId String
   creatorId      String
-
-  hashEngagement String //hash de l'engagement
-  txHash         String? //transaction blochaine
-
-  metadataURI    String? @default("test")
-
-  author       User         @relation(fields: [creatorId], "AdminEngagements", references: [id])
-  consultation Consultation @relation(fields: [consultationId], references: [id])
-
-  createdAt DateTime @default(now())
+  hashEngagement String
+  txHash         String?
+  metadataURI    String?          @default("test")
+  createdAt      DateTime         @default(now())
+  consultation   Consultation     @relation(fields: [consultationId], references: [id])
+  author         User             @relation("AdminEngagements", fields: [creatorId], references: [id])
 }
 
 model Consultation {
@@ -94,19 +75,15 @@ model Consultation {
   imageUrl    String?
   description String
   status      ConsultationStatus @default(OUVERTE)
-
   creatorId   String
-  creator     User               @relation("AdminConsultations", fields: [creatorId], references: [id])
-  
   startAt     DateTime           @default(now())
   endAt       DateTime
   createdAt   DateTime           @default(now())
-
   resultHash  String?
-
-  votes       Vote[]
-  options     Option[]
+  creator     User               @relation("AdminConsultations", fields: [creatorId], references: [id])
   engagements Engagement[]
+  options     Option[]
+  votes       Vote[]
 }
 
 model Option {
@@ -114,25 +91,20 @@ model Option {
   label          String
   consultationId String
   consultation   Consultation @relation(fields: [consultationId], references: [id])
-
-  votes Vote[]
+  votes          Vote[]
 }
 
 model BlockchainLog {
-  id         String  @id @default(uuid())
-  entityType String // "vote" ou "engagement"
-  entityId   String //id du vote ou de l'engagement
-
-  hash       String
-  txHash     String? //transaction blochaine
-
+  id          String   @id @default(uuid())
+  entityType  String
+  entityId    String
+  hash        String
+  txHash      String?
   blockNumber Int?
-
-  network    String //"polygon", etc.
-  status     String //ex: "pending", "confirmed", "failed"
-  explorerUrl String? //lien vers l'explorateur de blockchain pour cette transaction
-
-  createdAt DateTime @default(now())
+  network     String
+  status      String
+  explorerUrl String?
+  createdAt   DateTime @default(now())
 }
 
 model MerkleRoot {
@@ -142,7 +114,6 @@ model MerkleRoot {
   txHash         String?
   createdAt      DateTime @default(now())
 }
-//regrouper tous les votes  envoyer UN SEUL hash sur blockchain
 
 model ResultSnapshot {
   id             String   @id @default(uuid())
@@ -160,7 +131,6 @@ model AuditLog {
   entityId  String
   userId    String?
   metadata  Json?
-
   createdAt DateTime @default(now())
 }
 

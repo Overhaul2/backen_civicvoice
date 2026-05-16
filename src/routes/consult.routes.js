@@ -264,4 +264,80 @@ router.get('/allConsult', authenticate, consultController.getAll);
  */
 router.get('/findById/:id', authenticate, consultController.getOne);
 
+/**
+ * @swagger
+ * /api/consult/close/{consultId}:
+ *   post:
+ *     summary: Clore une consultation (passer son statut à FERMEE)
+ *     tags:
+ *       - Consultation
+ *
+ *     security:
+ *       - bearerAuth: []
+ *
+ *     parameters:
+ *       - in: path
+ *         name: consultId
+ *         required: true
+ *         description: ID de la consultation à clore
+ *         schema:
+ *           type: string
+ *           example: 02118281-2fb4-45dc-9136-502b85eaaa6f
+ *
+ *     responses:
+ *       200:
+ *         description: Consultation clôturée avec succès
+ *
+ *       400:
+ *         description: Requête invalide (ID manquant ou format incorrect)
+ *
+ *       401:
+ *         description: Non authentifié
+ *
+ *       404:
+ *         description: Consultation introuvable
+ *
+ *       500:
+ *         description: Erreur interne serveur
+ */
+router.post('/close/:consultId', authenticate, consultController.closeConsultationController);
+
+/**
+ * @swagger
+ * /api/consult/addConsultOnChain/{consultId}:
+ *   post:
+ *     summary: Créer une consultation sur la blockchain
+ *     tags:
+ *       - Consultation
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID de la consultation
+ *         schema:
+ *           type: string
+ *           example: 02118281-2fb4-45dc-9136-502b85eaaa6f
+ *     responses:
+ *       200:
+ *         description: Consultation créée sur la blockchain
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 txHash:
+ *                   type: string
+ *                   description: Hash de la transaction blockchain
+ *                   example: "0x74ba...f31a"
+ *       400:
+ *         description: Requête invalide (ID manquant)
+ *       401:
+ *         description: Non authentifié
+ *       500:
+ *         description: Erreur lors du processus de création sur la blockchain
+ */
+router.post("/addConsultOnChain/:consultId", authenticate, consultController.createConsultationBlockchainController);
+
 module.exports = router;

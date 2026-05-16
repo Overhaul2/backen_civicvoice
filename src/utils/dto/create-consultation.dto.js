@@ -1,5 +1,5 @@
 class CreateConsultationDTO {
-    constructor(data) {
+     constructor(data) {
         this.title = data.title;
         this.imageUrl = data.imageUrl || null;
         this.description = data.description;
@@ -13,6 +13,7 @@ class CreateConsultationDTO {
     }
 
     validate() {
+
         // Title
         if (!this.title || this.title.trim() === "") {
             throw new Error("Le titre est obligatoire");
@@ -37,13 +38,12 @@ class CreateConsultationDTO {
         if (!this.endAt) {
             throw new Error("La date de fin est obligatoire");
         }
-        if (startDate < new Date()) {
-            throw new Error("La date de début ne peut pas être dans le passé");
-        }
 
+        // Conversion des dates AVANT utilisation
         const startDate = new Date(this.startAt);
         const endDate = new Date(this.endAt);
 
+        // Vérification validité
         if (isNaN(startDate.getTime())) {
             throw new Error("Date de début invalide");
         }
@@ -52,6 +52,14 @@ class CreateConsultationDTO {
             throw new Error("Date de fin invalide");
         }
 
+        // Date passée
+        if (startDate < new Date()) {
+            throw new Error(
+                "La date de début ne peut pas être dans le passé"
+            );
+        }
+
+        // Ordre des dates
         if (endDate <= startDate) {
             throw new Error(
                 "La date de fin doit être supérieure à la date de début"
@@ -72,6 +80,7 @@ class CreateConsultationDTO {
         }
 
         for (const option of this.options) {
+
             if (
                 !option.label ||
                 option.label.trim() === ""
@@ -80,6 +89,7 @@ class CreateConsultationDTO {
                     "Chaque option doit avoir un label valide"
                 );
             }
+
         }
 
         return true;
