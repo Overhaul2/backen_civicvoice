@@ -2,6 +2,7 @@ const { prisma } = require("../config/db");
 const { ethers } = require("ethers");
 const { generateConsultationTree } = require("./merkle");
 const { formatIdForBlockchain } = require("../utils/formatId");
+const { createBlockchainLog } = require("../controllers/logsChaine");
 
 const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
 const wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
@@ -16,7 +17,9 @@ const ABI = [
 
     "function startVoting(bytes32 consultId) external",
 
-    "function consultations(bytes32 consultId) view returns (bool exists, uint256 startAt, uint256 endAt, uint8 status, bytes32 merkleRoot)"
+    "function consultations(bytes32 consultId) view returns (bool exists, uint256 startAt, uint256 endAt, uint8 status, bytes32 merkleRoot)",
+
+    "function getConsultation(bytes32 consultId) external view returns (bytes32 merkleRoot, bytes32 resultHash, uint256 createdAt, uint256 startAt, uint256 endAt, uint8 status, string memory metadataURI)"
 ];
 const contract = new ethers.Contract(process.env.BLOCKCHAIN_CONTRACT_ADDRESS, ABI, wallet);
 
@@ -54,36 +57,24 @@ const checkWalletBalance = async () => {
 };
 
 
-/**
- * Soumet la racine de Merkle à la blockchain.
- * @param {string} root - La racine au format hex (0x...)
- * @param {string} consultId - L'ID de la consultation converti en bytes32
- */
-// const submitMerkleRoot = async (root, consultId) => {
-//     try {
-//         // Optionnel : Estimation dynamique du gaz pour éviter les échecs sur Amoy
-//         const feeData = await provider.getFeeData();
-
-//         const tx = await contract.submitMerkleRoot(root, consultId, {
-//             maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
-//             maxFeePerGas: feeData.maxFeePerGas,
-//         });
-
-//         const receipt = await tx.wait();
-//         return receipt.hash;
-//     } catch (error) {
-//         console.error("Erreur lors de la soumission Merkle Root:", error);
-//         throw new Error("Échec de la transaction blockchain");
-//     }
-// };
-
-
 const createConsultationOnChain = async ({
     consultId,
     startAt,
     endAt,
     metadataURI
 }) => {
+
+    const networkName = (await contract.provider.getNetwork()).networkName;
+    const baseExplorerUrl = "https://polygonscan.com/tx/";
+
+    //  Log Initial : PENDING
+    await createBlockchainLog({
+        entityId: consultId,
+        entityType: "Consultation",
+        network: networkName,
+        status: "PENDING",
+        hash: formatIdForBlockchain(consultId)
+    });
 
     try {
 
@@ -100,12 +91,33 @@ const createConsultationOnChain = async ({
 
         const receipt = await tx.wait();
 
+        await createBlockchainLog({
+            entityId: consultId,
+            entityType: "Consultation",
+            network: networkName,
+            status: "SUCCESS",
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber,
+            explorerUrl: `${baseExplorerUrl}${receipt.hash}`
+        });
+
         return {
             txHash: receipt.hash,
             blockNumber: receipt.blockNumber,
         };
 
     } catch (error) {
+
+        const failedTxHash = error.transactionHash || error.receipt?.hash || null;
+
+        await createBlockchainLog({
+            entityId: consultId,
+            entityType: "Consultation",
+            network: networkName,
+            status: "FAILED",
+            txHash: failedTxHash,
+            explorerUrl: failedTxHash ? `${baseExplorerUrl}${failedTxHash}` : null
+        });
 
         console.error(
             "Erreur création consultation blockchain:",
@@ -118,14 +130,30 @@ const createConsultationOnChain = async ({
 
 const startVotingOnChain = async (consultId) => {
 
+    const networkName = "Polygon Amoy";
+    const baseExplorerUrl = "https://amoy.polygonscan.com/tx/";
     try {
+
+        await prisma.blockchainLog.create({
+            data: {
+                entityId: consultId,
+                entityType: "Consultation_StartVoting",
+                hash: consultIdBytes32,
+                network: networkName,
+                status: "PENDING"
+            }
+        });
 
         const consultIdBytes32 =
             formatIdForBlockchain(consultId);
         console.log("CONSULT ID RAW:", consultId);
         console.log("CONSULT ID BYTES32:", consultIdBytes32);
 
-        const onChain = await contract.consultations(consultIdBytes32);
+        const consultationData = await contract.getConsultation(consultIdBytes32);
+
+        console.log("Status actuel sur chain:", consultationData.status);
+
+        const onChain = await contract.getConsultation(consultIdBytes32);
 
         if (!onChain.exists) {
             throw new Error("::::::::::Consultation inexistante sur blockchain");
@@ -142,12 +170,39 @@ const startVotingOnChain = async (consultId) => {
 
         const receipt = await tx.wait();
 
+        await prisma.blockchainLog.create({
+            data: {
+                entityId: consultId,
+                entityType: "Consultation_StartVoting",
+                hash: consultIdBytes32,
+                txHash: receipt.hash,
+                blockNumber: receipt.blockNumber,
+                network: networkName,
+                status: "SUCCESS",
+                explorerUrl: `${baseExplorerUrl}${receipt.hash}`
+            }
+        });
+
         return {
             txHash: receipt.hash,
             blockNumber: receipt.blockNumber,
         };
 
     } catch (error) {
+
+        const failedTxHash = error.transactionHash || error.receipt?.hash || null;
+
+        await prisma.blockchainLog.create({
+            data: {
+                entityId: consultId,
+                entityType: "Consultation_StartVoting",
+                hash: formatIdForBlockchain(consultId),
+                txHash: failedTxHash,
+                network: networkName,
+                status: "FAILED",
+                explorerUrl: failedTxHash ? `${baseExplorerUrl}${failedTxHash}` : null
+            }
+        });
 
         console.error(
             "::::::::::Erreur start voting blockchain:",
@@ -160,8 +215,50 @@ const startVotingOnChain = async (consultId) => {
 
 
 // SUBMIT MERKLE ROOT
-const submitMerkleRoot = async (root, consultId) => {
+/**
+ * Soumet la racine de Merkle à la blockchain.
+ * @param {string} consultId - L'ID de la consultation converti en bytes32
+ * @param {string} root - La racine au format hex (0x...)
+ */
+const submitMerkleRoot = async (consultId,root ) => {
+    const networkName = "Polygon Amoy";
+    const baseExplorerUrl = "https://amoy.polygonscan.com/tx/";
+
+    await prisma.blockchainLog.create({
+        data: {
+            entityId: consultId,
+            entityType: "CONSULTATION_SUBMIT_ROOT",
+            hash: root, // On stocke la racine Merkle ici
+            network: networkName,
+            status: "PENDING"
+        }
+    });
     try {
+
+        const consultIdBytes32 =
+            formatIdForBlockchain(consultId);
+        // --- DIAGNOSTIC BLOCKCHAIN AVANT ENVOI ---
+        const onChain = await contract.getConsultation(consultIdBytes32);
+
+        // Récupération du timestamp du dernier bloc de la blockchain
+        const latestBlock = await contract.runner.provider.getBlock("latest");
+        const blockchainTime = latestBlock.timestamp;
+
+        console.log("=== DIAGNOSTIC SMART CONTRACT AVANT TRANSACTION ===");
+        console.log("Statut sur la blockchain (Attendu: 1) :", onChain.status.toString());
+        console.log("Date de fin blockchain (endAt) :", onChain.endAt.toString());
+        console.log("Heure actuelle blockchain (now) :", blockchainTime);
+        console.log("Temps restant avant verrouillage (secondes) :", Number(onChain.endAt) - blockchainTime);
+
+        // Validation locale préventive pour intercepter l'erreur
+        if (onChain.status !== 1n) {
+            throw new Error(`Le statut blockchain n'est pas VOTING (1). Statut actuel: ${onChain.status}`);
+        }
+
+        if (blockchainTime > Number(onChain.endAt)) {
+            throw new Error(`La période de vote est expirée sur la blockchain (${blockchainTime} > ${onChain.endAt}). Soumission de la racine refusée.`);
+        }
+
         console.log("=================================");
         console.log(":::::::::: ENVOI BLOCKCHAIN ::::::::::");
         console.log("=================================");
@@ -209,8 +306,7 @@ const submitMerkleRoot = async (root, consultId) => {
 
         // Transaction
         const tx = await contract.submitMerkleRoot(
-            root,
-            consultId,
+            consultId,root,
             {
                 gasLimit: gasEstimate + BigInt(50000),
                 maxPriorityFeePerGas:
@@ -225,6 +321,19 @@ const submitMerkleRoot = async (root, consultId) => {
         // Attente confirmation
         const receipt = await tx.wait();
 
+        await prisma.blockchainLog.create({
+            data: {
+                entityId: consultId,
+                entityType: "CONSULTATION_SUBMIT_ROOT",
+                hash: root,
+                txHash: receipt.hash,
+                blockNumber: receipt.blockNumber,
+                network: networkName,
+                status: "SUCCESS",
+                explorerUrl: `${baseExplorerUrl}${receipt.hash}`
+            }
+        });
+
         console.log(":::::::::: Transaction confirmée");
         console.log(":::::::::: Block Number:", receipt.blockNumber);
 
@@ -233,6 +342,19 @@ const submitMerkleRoot = async (root, consultId) => {
             blockNumber: receipt.blockNumber,
         };
     } catch (error) {
+
+        const failedTxHash = error.transactionHash || error.receipt?.hash || null;
+        await prisma.blockchainLog.create({
+            data: {
+                entityId: consultId,
+                entityType: "CONSULTATION_SUBMIT_ROOT",
+                hash: root,
+                txHash: failedTxHash,
+                network: networkName,
+                status: "FAILED",
+                explorerUrl: failedTxHash ? `${baseExplorerUrl}${failedTxHash}` : null
+            }
+        });
         console.error(" Erreur submitMerkleRoot:");
 
         if (error.shortMessage) {
@@ -256,6 +378,22 @@ const anchorEngagementOnChain = async (
     contentHash,
     metadataURI
 ) => {
+
+    const networkName = "Polygon Amoy";
+    const baseExplorerUrl = "https://amoy.polygonscan.com/tx/";
+
+    // Log Initial (PENDING)
+    await prisma.blockchainLog.create({
+        data: {
+            entityId: engId,
+            entityType: "ENGAGEMENT_ANCHOR",
+            hash: contentHash,
+            network: networkName,
+            status: "PENDING"
+        }
+    });
+
+
     try {
         const tx = await contract.addEngagement(
             engId,
@@ -266,6 +404,19 @@ const anchorEngagementOnChain = async (
         console.log(":::::::::: Engagement TX:", tx.hash);
 
         const receipt = await tx.wait();
+
+        await prisma.blockchainLog.create({
+            data: {
+                entityId: engId,
+                entityType: "ENGAGEMENT_ANCHOR",
+                hash: contentHash,
+                txHash: receipt.hash,
+                blockNumber: receipt.blockNumber,
+                network: networkName,
+                status: "SUCCESS",
+                explorerUrl: `${baseExplorerUrl}${receipt.hash}`
+            }
+        });
 
         console.log(":::::::::: Engagement ancré");
 
@@ -335,20 +486,19 @@ const performAnchoring = async (consultId) => {
 
         console.log(":::::: Merkle Root:", root);
 
-        // FORMAT ID
-        const consultIdBytes32 =
-            formatIdForBlockchain(consultId);
+        // // FORMAT ID
+        // const consultIdBytes32 =
+        //     formatIdForBlockchain(consultId);
 
-        console.log(
-            "::::::::::: Consultation Bytes32:",
-            consultIdBytes32
-        );
+        // console.log(
+        //     "::::::::::: Consultation Bytes32:",
+        //     consultIdBytes32
+        // );
 
         // SEND TO BLOCKCHAIN
         const blockchainResult =
             await submitMerkleRoot(
-                root,
-                consultIdBytes32
+                consultId,root
             );
 
         // SAVE DATABASE

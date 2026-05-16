@@ -268,61 +268,37 @@ router.get('/findById/:id', authenticate, consultController.getOne);
  * @swagger
  * /api/consult/close/{consultId}:
  *   post:
- *     summary: Clôturer une consultation et ancrer les résultats sur la blockchain
- *     description: Met fin à la période de vote, calcule la racine de Merkle et soumet l'ancrage cryptographique sur la blockchain.
+ *     summary: Clore une consultation (passer son statut à FERMEE)
  *     tags:
  *       - Consultation
+ *
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - consultationId
- *             properties:
- *               consultationId:
- *                 type: string
- *                 description: L'identifiant unique de la consultation à fermer
- *                 example: 65f123abc456def789
+ *
+ *     parameters:
+ *       - in: path
+ *         name: consultId
+ *         required: true
+ *         description: ID de la consultation à clore
+ *         schema:
+ *           type: string
+ *           example: 02118281-2fb4-45dc-9136-502b85eaaa6f
+ *
  *     responses:
  *       200:
- *         description: Consultation fermée et ancrée avec succès
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Consultation fermée et ancrée avec succès"
- *                 txHash:
- *                   type: string
- *                   description: Hash de la transaction blockchain
- *                   example: "0x74ba...f31a"
- *                 blockNumber:
- *                   type: integer
- *                   description: Numéro du bloc contenant la transaction
- *                   example: 154230
- *                 votesAnchored:
- *                   type: integer
- *                   description: Nombre de votes inclus dans l'ancrage
- *                   example: 150
- *                 rootHash:
- *                   type: string
- *                   description: Racine de l'arbre de Merkle ancrée
- *                   example: "a1b2c3d4..."
+ *         description: Consultation clôturée avec succès
+ *
  *       400:
- *         description: Requête invalide (ID manquant ou consultation déjà fermée)
+ *         description: Requête invalide (ID manquant ou format incorrect)
+ *
  *       401:
  *         description: Non authentifié
+ *
+ *       404:
+ *         description: Consultation introuvable
+ *
  *       500:
- *         description: Erreur lors du processus d'ancrage blockchain
+ *         description: Erreur interne serveur
  */
 router.post('/close/:consultId', authenticate, consultController.closeConsultationController);
 
